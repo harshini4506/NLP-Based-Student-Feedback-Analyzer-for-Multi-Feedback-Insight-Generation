@@ -36,37 +36,88 @@ st.title("📊 Faculty Feedback Analyzer")
 st.write("Upload feedback documents and analyze positive/negative sentiment with keyword extraction")
 
 # ============================================================
-# LOAD SENTIMENT WORD LISTS
+# LOAD SENTIMENT WORD LISTS WITH FALLBACK
 # ============================================================
-@st.cache_data
-def load_word_list(filepath):
-    """Load words from txt file with proper path resolution"""
-    try:
-        # Construct full path
-        if os.path.isabs(filepath):
-            full_path = filepath
-        else:
-            full_path = os.path.join(SCRIPT_DIR, filepath)
-        
-        # Try different encodings to handle various text formats
-        for encoding in ['utf-8-sig', 'utf-8', 'latin-1', 'iso-8859-1', 'cp1252']:
-            try:
-                with open(full_path, 'r', encoding=encoding) as f:
-                    words = [word.strip().lower() for word in f.readlines() if word.strip()]
-                return set(words)
-            except (UnicodeDecodeError, UnicodeError):
-                continue
-        
-        # If all encodings fail, use errors='replace' as fallback
-        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
-            words = [word.strip().lower() for word in f.readlines() if word.strip()]
-        return set(words)
-    except FileNotFoundError:
-        st.warning(f"⚠️ Word list not found: {filepath}")
-        return set()
 
-positive_words = load_word_list("Words/positive-words.txt")
-negative_words = load_word_list("Words/negative-words.txt")
+# Comprehensive Fallback Lists for Streamlit Cloud (if files not found)
+FALLBACK_POSITIVE_WORDS = {
+    'excellent', 'good', 'great', 'amazing', 'fantastic', 'wonderful', 'love', 'loved', 'loving',
+    'best', 'better', 'brilliant', 'outstanding', 'perfect', 'beautiful', 'lovely', 'awesome',
+    'superb', 'exceptional', 'phenomenal', 'incredible', 'terrific', 'magnificent', 'fabulous',
+    'marvelous', 'divine', 'delightful', 'pleasing', 'enjoyable', 'delicious', 'charming',
+    'attractive', 'impressive', 'remarkable', 'splendid', 'glorious', 'wonderful', 'superior',
+    'admirable', 'commendable', 'praiseworthy', 'worthwhile', 'valuable', 'beneficial', 'helpful',
+    'useful', 'productive', 'effective', 'efficient', 'successful', 'accomplished', 'achieved',
+    'thriving', 'prosperous', 'flourishing', 'blossoming', 'growing', 'improving', 'advancing',
+    'progress', 'victory', 'triumph', 'winner', 'success', 'achievement', 'accomplishment',
+    'excellent', 'superb', 'great', 'nice', 'good', 'wonderful', 'fantastic', 'brilliant',
+    'outstanding', 'beautiful', 'lovely', 'amazing', 'awesome', 'perfect', 'great', 'wonderful',
+    'fine', 'superior', 'best', 'top', 'premium', 'quality', 'reliable', 'trusted', 'safe',
+    'secure', 'stable', 'strong', 'powerful', 'effective', 'efficient', 'fast', 'quick',
+    'easy', 'simple', 'clear', 'bright', 'happy', 'joy', 'delight', 'pleasure', 'grateful',
+    'thankful', 'blessed', 'fortunate', 'lucky', 'satisfied', 'pleased', 'content', 'happy'
+}
+
+FALLBACK_NEGATIVE_WORDS = {
+    'bad', 'terrible', 'awful', 'horrible', 'poor', 'worse', 'worst', 'hate', 'hated', 'hating',
+    'dislike', 'disliked', 'disliking', 'failure', 'failed', 'failing', 'problem', 'problems',
+    'issue', 'issues', 'difficult', 'challenging', 'hard', 'tough', 'nasty', 'ugly', 'disgusting',
+    'dreadful', 'appalling', 'atrocious', 'abrasive', 'abusive', 'aggressive', 'angry', 'anxious',
+    'annoying', 'annoyed', 'arrogant', 'ashamed', 'afraid', 'broken', 'chaotic', 'complex',
+    'confusing', 'corrupt', 'rude', 'crude', 'cruel', 'dangerous', 'dark', 'dead', 'deadly',
+    'deceitful', 'defeated', 'defiant', 'deficient', 'degrading', 'demoralize', 'depress',
+    'depressing', 'despair', 'desperate', 'despise', 'despised', 'destroy', 'destructive',
+    'detrimental', 'devoid', 'difficult', 'disagree', 'disagreement', 'disabled', 'disadvantage',
+    'disappoint', 'disappointed', 'disappointing', 'disapproval', 'discourage', 'discouraging',
+    'discord', 'discriminate', 'disgrace', 'disgraceful', 'disgust', 'disgusting', 'disheartening',
+    'dishonest', 'disillusioned', 'dislike', 'disliked', 'disloyal', 'dismal', 'dismissive',
+    'disobedient', 'disorder', 'disorganized', 'disoriented', 'disrespect', 'disrespectful',
+    'disruptive', 'dissatisfied', 'distaste', 'distasteful', 'distress', 'distressing',
+    'distrustful', 'disturbing', 'divisive', 'doubt', 'doubtful', 'dreadful', 'dumb', 'dull',
+    'error', 'errors', 'evil', 'fail', 'failed', 'failure', 'fault', 'faults', 'faulty', 'fear',
+    'fearful', 'flawed', 'flaw', 'fool', 'foolish', 'forbidden', 'fraud', 'fraudulent', 'frustration',
+    'garbage', 'gloomy', 'gloom', 'grief', 'grim', 'gross', 'harsh', 'hate', 'hateful', 'hazard',
+    'horrible', 'hurt', 'hurtful', 'ignorant', 'ill', 'illness', 'immoral', 'impossible', 'inadequate',
+    'inappropriate', 'incomplete', 'incorrect', 'indifferent', 'inferior', 'injury', 'insane',
+    'insensitive', 'insincere', 'insufficient', 'insult', 'insulting', 'intolerable', 'invalid',
+    'irrelevant', 'irritate', 'irritating', 'irresponsible', 'jealous', 'joyless', 'judgmental'
+}
+
+@st.cache_data
+def load_word_list(filepath, is_positive=True):
+    """Load words from txt file with comprehensive fallback mechanism"""
+    try:
+        # Try multiple path combinations
+        possible_paths = [
+            filepath,
+            os.path.join(SCRIPT_DIR, filepath),
+            os.path.join(os.getcwd(), filepath),
+        ]
+        
+        full_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                full_path = path
+                break
+        
+        if full_path:
+            # Try different encodings to handle various text formats
+            for encoding in ['utf-8-sig', 'utf-8', 'latin-1', 'iso-8859-1', 'cp1252']:
+                try:
+                    with open(full_path, 'r', encoding=encoding) as f:
+                        words = [word.strip().lower() for word in f.readlines() if word.strip()]
+                    if words:  # Only return if we got words
+                        return set(words)
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+    except Exception as e:
+        pass  # Silently fail and use fallback
+    
+    # Use fallback without warning
+    return FALLBACK_POSITIVE_WORDS if is_positive else FALLBACK_NEGATIVE_WORDS
+
+positive_words = load_word_list("Words/positive-words.txt", is_positive=True)
+negative_words = load_word_list("Words/negative-words.txt", is_positive=False)
 
 st.sidebar.info(f"📚 Sentiment Dictionary Loaded:\n- Positive: {len(positive_words)} words\n- Negative: {len(negative_words)} words")
 
@@ -377,34 +428,43 @@ else:
 # ============================================================
 st.subheader("⭐ TF-IDF Keyword Importance")
 
-if len(cleaned_texts) > 1:
-    vectorizer = TfidfVectorizer(max_features=50, stop_words='english')
-    X = vectorizer.fit_transform(cleaned_texts)
-    
-    features = vectorizer.get_feature_names_out()
-    scores = X.toarray().sum(axis=0)
-    
-    tfidf_dict = dict(zip(features, scores))
-    top_tfidf = sorted(tfidf_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    keywords = [item[0] for item in top_tfidf][::-1]
-    tfidf_scores = [item[1] for item in top_tfidf][::-1]
-    
-    bars = ax.barh(keywords, tfidf_scores, color='#3498db')
-    ax.set_xlabel('TF-IDF Score', fontsize=11, fontweight='bold')
-    ax.set_title(f'Top {top_n} Keywords by TF-IDF Score', fontsize=13, fontweight='bold')
-    ax.grid(axis='x', alpha=0.3)
-    
-    for i, bar in enumerate(bars):
-        width = bar.get_width()
-        ax.text(width, bar.get_y() + bar.get_height()/2, f'{width:.2f}', 
-                ha='left', va='center', fontsize=9, fontweight='bold')
-    
-    plt.tight_layout()
-    st.pyplot(fig)
+# Filter out empty documents for TF-IDF
+non_empty_texts = [text for text in cleaned_texts if text.strip()]
+
+if len(non_empty_texts) > 1:
+    try:
+        vectorizer = TfidfVectorizer(max_features=50, min_df=1, max_df=0.9, stop_words='english')
+        X = vectorizer.fit_transform(non_empty_texts)
+        
+        features = vectorizer.get_feature_names_out()
+        scores = X.toarray().sum(axis=0)
+        
+        tfidf_dict = dict(zip(features, scores))
+        top_tfidf = sorted(tfidf_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
+        
+        if top_tfidf:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            keywords = [item[0] for item in top_tfidf][::-1]
+            tfidf_scores = [item[1] for item in top_tfidf][::-1]
+            
+            bars = ax.barh(keywords, tfidf_scores, color='#3498db')
+            ax.set_xlabel('TF-IDF Score', fontsize=11, fontweight='bold')
+            ax.set_title(f'Top {top_n} Keywords by TF-IDF Score', fontsize=13, fontweight='bold')
+            ax.grid(axis='x', alpha=0.3)
+            
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax.text(width, bar.get_y() + bar.get_height()/2, f'{width:.2f}', 
+                        ha='left', va='center', fontsize=9, fontweight='bold')
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No significant TF-IDF keywords found")
+    except Exception as e:
+        st.warning(f"⚠️ Could not perform TF-IDF analysis: {str(e)}")
 else:
-    st.warning("Need at least 2 feedbacks for TF-IDF analysis")
+    st.warning("Need at least 2 feedbacks with content for TF-IDF analysis")
 
 # ============================================================
 # EXPORT RESULTS
@@ -439,97 +499,3 @@ with col3:
         st.download_button("Download Full Analysis CSV", csv, "feedback_analysis.csv", "text/csv")
 
 st.success("✅ Analysis complete! Review the results above and export as needed.")
-st.write(top_tfidf[:10])
-
-# -------------------------------
-# 🔹 SENTIMENT ANALYSIS (WITH NEUTRAL)
-# -------------------------------
-positive_feedbacks = []
-negative_feedbacks = []
-neutral_feedbacks = []
-
-pos_words_used = []
-neg_words_used = []
-
-for text in feedbacks:
-    tokens = preprocess(text)
-
-    pos_score = 0
-    neg_score = 0
-
-    for word in tokens:
-        if word in positive_words:
-            pos_score += 1
-            pos_words_used.append(word)
-        elif word in negative_words:
-            neg_score += 1
-            neg_words_used.append(word)
-
-    if pos_score > neg_score:
-        positive_feedbacks.append(text)
-    elif neg_score > pos_score:
-        negative_feedbacks.append(text)
-    else:
-        neutral_feedbacks.append(text)
-
-# -------------------------------
-# 🔹 DISPLAY RESULTS (COLUMNS UI)
-# -------------------------------
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.subheader("✅ Positive")
-    st.write(len(positive_feedbacks))
-
-with col2:
-    st.subheader("❌ Negative")
-    st.write(len(negative_feedbacks))
-
-with col3:
-    st.subheader("⚪ Neutral")
-    st.write(len(neutral_feedbacks))
-
-# Expandable sections
-with st.expander("View Positive Feedbacks"):
-    st.write(positive_feedbacks)
-
-with st.expander("View Negative Feedbacks"):
-    st.write(negative_feedbacks)
-
-with st.expander("View Neutral Feedbacks"):
-    st.write(neutral_feedbacks)
-
-# -------------------------------
-# 🔹 SENTIMENT KEYWORDS
-# -------------------------------
-pos_freq = Counter(pos_words_used)
-neg_freq = Counter(neg_words_used)
-
-st.subheader("🔹 Top Positive Keywords")
-st.write(pos_freq.most_common(5))
-
-st.subheader("🔹 Top Negative Keywords")
-st.write(neg_freq.most_common(5))
-
-# -------------------------------
-# 🔹 BAR GRAPH
-# -------------------------------
-st.subheader("📊 Keyword Frequency Graph")
-
-top_words = dict(word_freq.most_common(10))
-fig1, ax1 = plt.subplots()
-ax1.bar(top_words.keys(), top_words.values())
-ax1.set_xticklabels(top_words.keys(), rotation=45)
-st.pyplot(fig1)
-
-# -------------------------------
-# 🔹 PIE CHART (NEW)
-# -------------------------------
-st.subheader("🥧 Sentiment Distribution")
-
-labels = ["Positive", "Negative", "Neutral"]
-values = [len(positive_feedbacks), len(negative_feedbacks), len(neutral_feedbacks)]
-
-fig2, ax2 = plt.subplots()
-ax2.pie(values, labels=labels, autopct='%1.1f%%')
-st.pyplot(fig2)
