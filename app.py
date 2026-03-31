@@ -5,6 +5,7 @@ import nltk
 import string
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
@@ -12,6 +13,9 @@ from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
 import warnings
 warnings.filterwarnings('ignore')
+
+# Get the directory where the script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Download required NLTK data
 @st.cache_resource
@@ -36,19 +40,25 @@ st.write("Upload feedback documents and analyze positive/negative sentiment with
 # ============================================================
 @st.cache_data
 def load_word_list(filepath):
-    """Load words from txt file"""
+    """Load words from txt file with proper path resolution"""
     try:
+        # Construct full path
+        if os.path.isabs(filepath):
+            full_path = filepath
+        else:
+            full_path = os.path.join(SCRIPT_DIR, filepath)
+        
         # Try different encodings to handle various text formats
         for encoding in ['utf-8-sig', 'utf-8', 'latin-1', 'iso-8859-1', 'cp1252']:
             try:
-                with open(filepath, 'r', encoding=encoding) as f:
+                with open(full_path, 'r', encoding=encoding) as f:
                     words = [word.strip().lower() for word in f.readlines() if word.strip()]
                 return set(words)
             except (UnicodeDecodeError, UnicodeError):
                 continue
         
         # If all encodings fail, use errors='replace' as fallback
-        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
             words = [word.strip().lower() for word in f.readlines() if word.strip()]
         return set(words)
     except FileNotFoundError:
